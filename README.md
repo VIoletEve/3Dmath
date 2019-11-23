@@ -57,8 +57,11 @@
 
 
       m11  m12  m13          m11  m12  m13
+
 M4x3= m21  m22  m23    M3x3= m21  m22  m23
+      
       m31  m32  m33          m31  m32  m33
+      
       m41  m42  m43
 
 **行数列数相同的叫方阵**
@@ -303,14 +306,13 @@ h=atan2(-m31,m11)
 ***
 
 
-
 ### MathUtil类
 
 -[MathUtil类头文件](3Dmath/MathUtil.h)
 
 -[MathUtil类cpp文件](3Dmath/MathUtil.cpp)
 
-#### 重点
+#### 万向锁
 
 
 ```
@@ -387,33 +389,266 @@ void EulerAngles::canonize() {
 ```
 
 
-#### 四元数->欧拉角 物体->惯性 惯性->物体
+### 四元数类
 
-根据矩阵->欧拉角公式把欧拉角转为旋转矩阵形式
-**cosp=0说明发生了万向锁
-**
-p=asin(-m23)
-h=atan2(m13,m33)
-  atan2(-m31,m11)(若cosp=0)
-b=atan2(m21,m22)
-  0		(若cosp=0)
+-[四元数头文件](3Dmath/Quaternion.h)
 
-**
-
-**再从矩阵获取四元数(四元数->矩阵公式)
-m23=2yz+2wx
-m13=2xz-2wy
-m33=1-2x^2-2y^2...
-带入得
-p=asin(-2(yz+wx))
-h=- atan2(xz-wy,1/2-x^2-y^2)
-  - atan2(-xz-wy,1/2-y^2-z^2)若cosp=0
-**b=- atan2(xy-wz,1/2-x^2-z^2)
-  - 0  	(若cosp=0)
+-[四元数cpp文件](3Dmath/Quaternion.cpp)
 
 
+***
+
+### 旋转矩阵类
+
+-[旋转矩阵头文件](3Dmath/RotationMatrix.h)
+
+-[旋转矩阵cpp文件](3Dmath/RotationMatrix.cpp)
 
 
+***
+
+### 4x3矩阵类
+
+-[4x3矩阵头文件](3Dmath/Matrix4x3.h)
+
+-[4x3矩阵cpp文件](3Dmath/Matrix4x3.cpp)
+
+***
+
+矩阵的刚体变换
+
+```
+//从父->局部(世界->物体)变换矩阵中提取物体的位置
+//矩阵的刚体变换
+Vector3 getPositionFromParentToLocalMatrix(const Matrix4x3& m) {
+	return Vector3{
+		-(m.tx * m.m11 + m.ty * m.m12 + m.tz * m.m13),
+		-(m.tx * m.m21 + m.ty * m.m22 + m.tz * m.m23),
+		-(m.tx * m.m31 + m.ty * m.m32 + m.tz * m.m33)
+	};
+}
+```
+
+***
+
+## 几何图元
+
+### 射线
+
+p(t)=p0+td  p0是射线起点坐标，t是长度,d是方向单位向量
+
+### 直线
+
+ax+by=d  p×n=d  向量n=[a,b]
+
+### 球
+||p-c||=r  c表示球心，r表示半径
+
+
+### 矩形边界框(AABB)
+
+AABB内的点都满足Xmin<X<Xmax,Ymin<Y<Ymax,Zmin<Z<Zmax,
+
+所以AABB类的定义就是Pmin=[Xmin,Ymin,Zmin]   Pmax=[Xmax,Ymax,Zmax]
+
+中心点c=(Pmin+Pmax)/2
+
+"尺寸向量"(包含矩形边界框的长宽高)s=Pmax-Pmin
+
+变换AABB，我们只要求变换后的Pmin和Pmax就可以了
+
+
+### 平面
+
+p×n=d   n是法向量  d是原点到平面的距离
+
+用三个点定义平面(p1,p2,p3)
+
+按顺时针构造向量e1(p1->p2),e3(p2->p3),n是平面的法向量
+
+e1=p2-p1,e3=p3-p2,n=(e3xe1)/||e3xe1||
+
+点到平面的距离  a=qxn-d  p242  公式12.14
+
+
+### 三角形
+
+三个顶点(v1,v2,v3)
+
+e1=v3-v2  e2=v1-v3  e3=v2-v1  l1=||e1||  l2=||e2||   l3=||e3||
+
+三角形边长  p=l1+l2+l3
+
+**三角形面积**
+
+海伦公式
+
+s=(l1+l2+l3)/2=p/2
+
+A=s(s-l1)(s-l2)(s-l3)的平方根
+
+更简单的可以用向量叉乘的模来得到以e1和e2为边的平行四边形面积
+
+A=||e1xe2||/2
+
+***
+
+### 重心坐标空间
+
+```
+//计算3d重心坐标，v是三角形顶点，要求重心坐标的点p，b是保存的重心坐标
+bool computeBarycentricCoords3d(const Vector3 v[3], const Vector3& p, float b[3]) {
+	//计算两个边向量
+	Vector3 d1 = v[1] - v[0];
+	Vector3 d2 = v[2] - v[1];
+	//用叉乘计算法向量(无需正则化)
+	Vector3 n = crossProduct(d1, d2);
+
+	//判断法向量中占优势的轴，选择投影平面
+	float u1, u2, u3, u4;
+	float v1, v2, v3, v4;
+
+	if ((fabs(n.x) >= fabs(n.y)) && (fabs(n.x) >= fabs(n.z))) {
+		//抛弃x，向yz平面投影
+		u1 = v[0].y - v[2].y;
+		u2 = v[1].y - v[2].y;
+		u3 = p.y - v[0].y;
+		u4 = p.y - v[2].y;
+
+		v1 = v[0].z - v[2].z;
+		v2 = v[1].z - v[2].z;
+		v3 = p.z - v[0].z;
+		v4 = p.z - v[2].z;
+
+	}
+	else if (fabs(n.y) >= fabs(n.z)) {
+		//抛弃y，向xz平面投影
+		u1 = v[0].z - v[2].z;
+		u2 = v[1].z - v[2].z;
+		u3 = p.z - v[0].z;
+		u4 = p.z - v[2].z;
+
+		v1 = v[0].x - v[2].x;
+		v2 = v[1].x - v[2].x;
+		v3 = p.x - v[0].x;
+		v4 = p.x - v[2].x;
+	}
+	else {
+		u1 = v[0].x - v[2].x;
+		u2 = v[1].x - v[2].x;
+		u3 = p.x - v[0].x;
+		u4 = p.x - v[2].x;
+
+		v1 = v[0].y - v[2].y;
+		v2 = v[1].y - v[2].y;
+		v3 = p.y - v[0].y;
+		v4 = p.y - v[2].y;
+
+	}
+
+	//计算分母,并判断是否合法
+	float denom = v1 * u2 - v2 * u1;
+	if (denom == 0.0f) {
+		//退化三角形-面积为0的三角形
+		return false;
+	}
+	//计算重心坐标
+	float oneOverDenom = 1.0f / denom;
+	b[0] = (v4 * u2 - v2 * u4) * oneOverDenom;
+	b[1] = (v1 * u3 - v3 * u1) * oneOverDenom;
+	b[2] = 1.0f - b[0] - b[1];
+
+	return true;
+
+}
+```
+
+***
+
+### 特殊点
+- 重点
+- 内心
+- 外心
+
+重心是三角形的最佳平衡点，它是三角形三条中线的交点
+
+Cgrav=(v1+v2+v3)/3
+
+重心坐标(1/3,1/3,1/3)
+
+内心是到三角形各边相等的点，它是三角形内接圆的圆心
+
+CIn=(l1v1+l2v2+l3v3)/p   p是三角形周长l1+l2+l3
+
+内心的重心坐标为(l1/p,l2/p,l3/p)
+
+内切圆半径rIn=A/p
+
+外心是三角形中到各顶点距离相等的点，它是三角形外接圆的圆心
+
+见p254
+
+
+### 多边形
+
+3D中用角度和判断凸多边形
+
+```
+
+bool isConvex(int n,const Vector3 vl[]){
+	float angleSum=0.0f;
+
+	//遍历多边形顶点，将角度相加
+	for(int i=0;i!=n;++i){
+		//计算边向量，注意第一个和最后一个顶点
+		Vector3 e1;
+		if(i==0){
+			e1=vl[n-1]-vl[i];
+		}else{
+			e1=vl[i-1]-vl[i];
+		}
+		Vector3 e2;
+		if(i==n-1){
+			e2=vl[0]-vl[i];
+		}else{
+			e2=vl[i+1]-vl[i];
+		}
+
+		//标准化计算点乘
+		e1.normalize();
+		e2.normalize();
+
+		float dot=e1*e2;
+
+		//用安全反三角函数得到角度
+		float theta=safeAcos(dot);
+
+		angleSum+=theta;
+	}
+
+	//计算内角和
+	float convexAngleSum=(float)(n-2)*kpi;
+
+	if(angleSum<convexAngleSum-(float)n*0.0001f){
+		//凹多边形
+		return false
+	}
+
+	//凸多边形
+	return true;
+
+}
+
+```
+
+
+## 几何检测
+
+### AABB类
+
+-[AABB类头文件](3Dmath/AABB3.h)
+
+-[AABB类cpp文件](3Dmath/AABB3.cpp)
 
 
 
