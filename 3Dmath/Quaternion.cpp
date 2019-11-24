@@ -58,7 +58,7 @@ void Quaternion::setToRotateAxis(const Vector3& axis, float theta) {
 
 }
 
-//从物体到惯性欧拉角构造四元数
+//从欧拉角构造物体到惯性四元数
 void Quaternion::setToRotateObjectToInertial(const EulerAngles& orientation) {
 	float sp, sb, sh;
 	float cp, cb, ch;
@@ -73,7 +73,7 @@ void Quaternion::setToRotateObjectToInertial(const EulerAngles& orientation) {
 
 }
 
-//从惯性带物体欧拉角构造四元数，与上面共轭
+//从欧拉角构造惯性到物体四元数，与上面共轭
 void Quaternion::setToRotateInertialToObject(const EulerAngles& orientation) {
 	float sp, sb, sh;
 	float cp, cb, ch;
@@ -88,6 +88,7 @@ void Quaternion::setToRotateInertialToObject(const EulerAngles& orientation) {
 	
 }
 
+//四元数叉乘
 Quaternion Quaternion::operator*(const Quaternion& a)const {
 	Quaternion result;
 
@@ -105,10 +106,13 @@ Quaternion &Quaternion::operator*=(const Quaternion& a) {
 	return *this;
 }
 
+//正则化
 void Quaternion::normalize() {
 
+	//计算四元数的模
 	float mag = (float)sqrt(w * w + x * x + y * y + z * z);
 
+	//检查长度，防止除零错误
 	if (mag > 0.0f) {
 		
 		float oneOverMag = 1.0f / mag;
@@ -123,30 +127,35 @@ void Quaternion::normalize() {
 	}
 }
 
+//返回旋转角
 float Quaternion::getRotationAngle()const {
 	float thetaOver2 = safeAcos(w);
 	return thetaOver2 * 2.0f;
 }
 
+//返回旋转轴
 Vector3 Quaternion::getRotationAxis()const {
 
+	//计算sin^2(theta/2)
 	float sinThetaOver2Sq = 1.0f - w * w;
 
 	if (sinThetaOver2Sq <= 0.0f) {
 		return Vector3(1.0f, 0.0f, 0.0f);
 	}
 
+	//计算1/sin(theta/2)
 	float oneOverSinThetaOver2 = 1.0f / sqrt(sinThetaOver2Sq);
 
 	return Vector3(x * oneOverSinThetaOver2, y * oneOverSinThetaOver2, z * oneOverSinThetaOver2);
 }
 
 
-
+//四元数点乘
 extern float dotProduct(const Quaternion& a, const Quaternion& b) {
 	return a.w * b.w + a.x * b.x + a.y * b.y + a.z * b.z;
 }
 
+//球面线性插值
 extern Quaternion slerp(const Quaternion& q0, const Quaternion& q1, float t) {
 	if (t <= 0.0f)return q0;
 	if (t >= 1.0f)return q1;
@@ -194,6 +203,7 @@ extern Quaternion slerp(const Quaternion& q0, const Quaternion& q1, float t) {
 
 }
 
+//共轭
 extern Quaternion conjugate(const Quaternion& q) {
 	Quaternion result;
 	result.w = q.w;
@@ -205,6 +215,7 @@ extern Quaternion conjugate(const Quaternion& q) {
 	return result;
 }
 
+//四元数幂
 extern Quaternion pow(const Quaternion& q, float exponent) {
 	if (fabs(q.w) > .9999f) {
 		return q;

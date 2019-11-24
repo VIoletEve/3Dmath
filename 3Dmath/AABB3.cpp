@@ -340,18 +340,22 @@ int AABB3::classifyPlane(const Vector3& n, float d)const {
 	//否则，相交
 	return 0;
 }
-//与平面的动态相交性检测
+
+//与平面的动态相交性检测，dir是AABB的移动方向
+//把平面当做静止，只探索与平面正面的相交
 float AABB3::intersectPlane(const Vector3& n, float planeD, const Vector3& dir)const {
 	//检测正则化
 	assert(fabs(n * n - 1.0f) < .0001f);
 	assert(fabs(dir * dir - 1.0f) < .0001f);
 
 	const float kNoIntersection = 1e30f;
+	//计算夹角，确保是往平面正面移动
 	float dot = n * dir;
+	//如果大于0，说明是锐角与平面法向量同一方向，这样说明不会相交或者与平面背面相交
 	if (dot >= 0.0f) {
 		return kNoIntersection;
 	}
-
+	//求最小最大点乘，也就是距离
 	float minD, maxD;
 	if (n.x > 0.0f) {
 		minD = n.x * min.x; maxD = n.x * max.x;
@@ -373,14 +377,17 @@ float AABB3::intersectPlane(const Vector3& n, float planeD, const Vector3& dir)c
 	else {
 		minD += n.z * max.z; maxD += n.z * min.z;
 	}
-
+	//在平面背面不考虑
 	if (maxD <= planeD) {
 		return kNoIntersection;
 	}
+	//将最近的点带入标准射线方程(利用射线与平面相交性公式)
 	float t = (planeD - minD) / dot;
+	//检测是否已经穿过
 	if (t < 0.0f) {
 		return 0.0f;
 	}
+	//返回。如果结果大于1，则没有及时到达平面，需要调用者进行检查
 	return t;
 }
 
@@ -407,9 +414,100 @@ bool intersectAABBs(const AABB3& box1, const AABB3& box2, AABB3* boxIntersect = 
 	return true;
 }
 
-//两个AABB3的动态相交性检测
+//两个AABB3的动态相交性检测,如果返回值>1则未相交
 float intersectMovingAABB(const AABB3& stationaryBox, const AABB3& movingBox, const Vector3& d) {
 
 	const float kNoIntersection = 1e30f;
+	//初始化时间区间,以包含需要考虑的全部时间段
+	float tEnter = 0.0f;
+	float tLeave = 1.0f;
+	//如果在x轴上的位移为0，则检测x分量是否相交
+	if (d.x == 0.0f) {
 
+		if(
+			(stationaryBox.min.x>=movingBox.max.x)||(stationaryBox.max.x<=movingBox.min.x)
+			)
+		{
+			return kNoIntersection;
+		}
+
+	}
+	else
+	{
+		float oneOverD = 1.0f / d.x;
+
+		float xEnter = (stationaryBox.min.x - movingBox.max.x) * oneOverD;
+		float xLeave = (stationaryBox.max.x - movingBox.min.x) * oneOverD;
+
+		if (xEnter > xLeave) {
+			swap(xEnter, xLeave);
+		}
+
+		if (xEnter > tEnter)tEnter = xEnter;
+		if (xLeave < tLeave)tLeave = xLeave;
+
+		if (tEnter > tLeave) {
+			return kNoIntersection;
+		}
+	}
+
+	if (d.y == 0.0f) {
+
+		if (
+			(stationaryBox.min.y >= movingBox.max.y) || (stationaryBox.max.y <= movingBox.min.y)
+			)
+		{
+			return kNoIntersection;
+		}
+
+	}
+	else
+	{
+		float oneOverD = 1.0f / d.y;
+
+		float yEnter = (stationaryBox.min.y - movingBox.max.y) * oneOverD;
+		float yLeave = (stationaryBox.max.y - movingBox.min.y) * oneOverD;
+
+		if (yEnter > yLeave) {
+			swap(yEnter, yLeave);
+		}
+
+		if (yEnter > tEnter)tEnter = yEnter;
+		if (yLeave < tLeave)tLeave = yLeave;
+
+		if (tEnter > tLeave) {
+			return kNoIntersection;
+		}
+	}
+
+	if (d.z == 0.0f) {
+
+		if (
+			(stationaryBox.min.z >= movingBox.max.z) || (stationaryBox.max.z <= movingBox.min.z)
+			)
+		{
+			return kNoIntersection;
+		}
+
+	}
+	else
+	{
+		float oneOverD = 1.0f / d.z;
+
+		float zEnter = (stationaryBox.min.z - movingBox.max.z) * oneOverD;
+		float zLeave = (stationaryBox.max.z - movingBox.min.z) * oneOverD;
+
+		if (zEnter > zLeave) {
+			swap(zEnter, zLeave);
+		}
+
+		if (zEnter > tEnter)tEnter = zEnter;
+		if (zLeave < tLeave)tLeave = zLeave;
+
+		if (tEnter > tLeave) {
+			return kNoIntersection;
+		}
+	}
+
+	return tEnter;
 }

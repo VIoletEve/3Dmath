@@ -13,6 +13,7 @@ void RotationMatrix::identity(){
 	m31 = 0.0f; m32 = 0.0f; m33 = 1.0f;
 }
 
+//欧拉角构造旋转矩阵
 void RotationMatrix::setup(const EulerAngles& orientation) {
 	float sh, ch, sp, cp, sb, cb;
 	sinCos(&sh, &ch, orientation.heading);
@@ -33,6 +34,7 @@ void RotationMatrix::setup(const EulerAngles& orientation) {
 
 }
 
+//对向量做惯性->物体变换
 Vector3 RotationMatrix::inertialToObject(const Vector3& v)const {
 	return Vector3{
 		m11 * v.x + m21 * v.y + m31 * v.z,
@@ -41,6 +43,7 @@ Vector3 RotationMatrix::inertialToObject(const Vector3& v)const {
 	};
 }
 
+//对向量做物体->惯性变换
 Vector3 RotationMatrix::objectToInertial(const Vector3& v)const {
 	return Vector3{
 		m11 * v.x + m12 * v.y + m13 * v.z,
@@ -49,6 +52,7 @@ Vector3 RotationMatrix::objectToInertial(const Vector3& v)const {
 	};
 }
 
+//从惯性到物体四元数构造旋转矩阵
 void RotationMatrix::fromInertialToObjectQuaternion(const Quaternion& q) {
 	m11 = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);
 	m12 = 2.0f * (q.x * q.y + q.w * q.z);
@@ -64,7 +68,7 @@ void RotationMatrix::fromInertialToObjectQuaternion(const Quaternion& q) {
 
 }
 
-//物体到惯性坐标系旋转四元数构造矩阵
+//从物体到惯性四元数构造旋转矩阵
 void RotationMatrix::fromObjectToInertialQuaternion(const Quaternion& q) {
 
 	m11 = 1.0f - 2.0f * (q.y * q.y + q.z * q.z);

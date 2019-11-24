@@ -63,6 +63,7 @@ void Matrix4x3::setupParentToLocal(const Vector3& pos, const EulerAngles& orient
 
 }
 
+//从旋转矩阵构造向量父空间到局部空间的矩阵
 void Matrix4x3::setupParentToLocal(const Vector3& pos, const RotationMatrix& orient) {
 	m11 = orient.m11; m12 = orient.m12; m13 = orient.m13;
 	m21 = orient.m21; m22 = orient.m22; m23 = orient.m23;
@@ -231,7 +232,7 @@ void Matrix4x3::setupProject(const Vector3& n) {
 	tx = ty = tz = 0.0f;
 }
 
-//反射矩阵，反射平面平行于坐标平面
+//反射(镜像)矩阵，镜像平面平行于坐标平面，沿axis=k平面
 void Matrix4x3::setupReflect(int axis, float k) {
 
 	switch (axis)
@@ -263,6 +264,7 @@ void Matrix4x3::setupReflect(int axis, float k) {
 	}
 }
 
+//绕任意通过原点的平面反射(镜像)，且垂直于单位向量v
 void Matrix4x3::setupReflect(const Vector3& v) {
 	assert(fabs(v * v - 1.0f) < 0.0001f);
 
@@ -282,6 +284,7 @@ void Matrix4x3::setupReflect(const Vector3& v) {
 
 }
 
+//对向量p执行m矩阵变换
 Vector3 operator*(const Vector3& p, const Matrix4x3& m) {
 	return Vector3{
 		p.x * m.m11 + p.y * m.m21 + p.z * m.m31 + m.tx,
@@ -297,6 +300,7 @@ Vector3& operator*=(Vector3& p, const Matrix4x3& m) {
 		
 }
 
+//矩阵相乘连接
 Matrix4x3 operator*(const Matrix4x3& a, const Matrix4x3& b) {
 
 	Matrix4x3 r;
@@ -327,6 +331,7 @@ Matrix4x3 operator*=(Matrix4x3& a, const Matrix4x3& b) {
 		
 }
 
+//矩阵行列式
 float determinant(const Matrix4x3& m) {
 	return
 		m.m11 * (m.m22 * m.m33 - m.m23 * m.m32)
@@ -334,8 +339,10 @@ float determinant(const Matrix4x3& m) {
 		+ m.m13 * (m.m21 * m.m32 - m.m22 * m.m31);
 }
 
+//矩阵的逆
 Matrix4x3 inverse(const Matrix4x3& m) {
 	float det = determinant(m);
+	//如果行列式为0，则说明没有矩阵的逆
 	assert(fabs(det) > 0.000001f);
 
 	float oneOverDet = 1.0f / det;
@@ -362,10 +369,13 @@ Matrix4x3 inverse(const Matrix4x3& m) {
 
 }
 
+//提取平移部分
 Vector3 getTranslation(const Matrix4x3& m) {
 	return Vector3(m.tx, m.ty, m.tz);
 }
 
+//从父->局部(世界->物体)变换矩阵中提取物体的位置
+//矩阵的刚体变换
 Vector3 getPositionFromParentToLocalMatrix(const Matrix4x3& m) {
 	return Vector3{
 		-(m.tx * m.m11 + m.ty * m.m12 + m.tz * m.m13),
@@ -374,6 +384,8 @@ Vector3 getPositionFromParentToLocalMatrix(const Matrix4x3& m) {
 	};
 }
 
+
+//从局部->父(物体->世界)变换矩阵中提取物体位置
 Vector3 getPositionFromLocalToParentMatrix(const Matrix4x3& m) {
 	return Vector3(m.tx, m.ty, m.tz);
 }
