@@ -2,7 +2,7 @@
 
 ## Notes
 
-***3D数学基础：图形与游戏开发全书总结提炼***
+***3D数学基础：图形与游戏开发全书总结导航***
 
 ***只讨论重点***
 
@@ -10,7 +10,6 @@
 ## Pages
 
 - 3D变换
-  - 设计决策
   - 基础知识
   - 3D向量类
   - MathUtil类
@@ -20,14 +19,14 @@
   - 4x3矩阵类
 - 几何图元
   - AABB类
-  - 三角网格类
+- 几何检测
+  - 三角网格类 
+- 图形管道
+- 裁剪空间
 
 ***
 
 ## 3D变换
-***
-### 设计决策
-
 ***
 
 ### 基础知识
@@ -641,7 +640,7 @@ bool isConvex(int n,const Vector3 vl[]){
 
 ```
 
-
+***
 ## 几何检测
 
 ### AABB类
@@ -652,6 +651,248 @@ bool isConvex(int n,const Vector3 vl[]){
 
 
 
+**AABB和平面的相交性检测**
 
+**静态检测**
+
+判断AABB在平面的哪一面或者相交，只需求向量法向量n和AABB的顶点点积
+
+只需要求最小点积和最大点积，如果n.x>0,那么和min.x得到最小点积，和max.x得到最大点积，若n.x<0则相反
+
+求出每个分量的最小最大点积加起来则得到最小点积和最大点积
+
+运用向量投影的知识我们知道，如果求出的最小点积都大于d(原点到平面的距离),那么AABB都在平面正面
+
+如果求出的最大点积都小于d，那么AABB都在平面反面，否则相交
+
+```
+//判断AABB在平面的哪一面
+int AABB3::classifyPlane(const Vector3& n, float d)const {
+	//求最小点乘和最大点乘也就是距离
+	float minD, maxD;
+	//如果法向量x轴分量>0，和min.x获得最小点乘的x分量，和max.x获得最大点乘的x分量
+	if (n.x > 0.0f) {
+		minD = n.x * min.x; maxD = n.x * max.x;
+
+	}
+	else {
+		minD = n.x * max.x; maxD = n.x * min.x;
+	}
+	if (n.y > 0.0f) {
+		minD += n.y * min.y; maxD += n.y * max.y;
+
+	}
+	else {
+		minD += n.y * max.y; maxD += n.y * min.y;
+	}
+	if (n.z > 0.0f) {
+		minD += n.z * min.z; maxD += n.z * max.z;
+
+	}
+	else {
+		minD += n.z * max.z; maxD += n.z * min.z;
+	}
+
+	//如果最小距离都大于d，则全在平面正面
+	if (minD >= d) {
+		return +1;
+	}
+	//如果最大距离都小于d，则全在平面背面
+	if (maxD <= d) {
+		return -1;
+	}
+	//否则，相交
+	return 0;
+}
+```
+
+**动态检测**
+
+先用点乘求出是否是与平面正面的相交
+
+再用最近点带入射线与平面相交的公式，得出是否相交，如果没相交返回距离
+
+```
+
+//与平面的动态相交性检测，dir是AABB的移动方向
+//把平面当做静止，只探索与平面正面的相交
+float AABB3::intersectPlane(const Vector3& n, float planeD, const Vector3& dir)const {
+	//检测正则化
+	assert(fabs(n * n - 1.0f) < .0001f);
+	assert(fabs(dir * dir - 1.0f) < .0001f);
+
+	const float kNoIntersection = 1e30f;
+	//计算夹角，确保是往平面正面移动
+	float dot = n * dir;
+	//如果大于0，说明是锐角与平面法向量同一方向，这样说明不会相交或者与平面背面相交
+	if (dot >= 0.0f) {
+		return kNoIntersection;
+	}
+	//求最小最大点乘，也就是距离
+	float minD, maxD;
+	if (n.x > 0.0f) {
+		minD = n.x * min.x; maxD = n.x * max.x;
+	}
+	else {
+		minD = n.x * max.x; maxD = n.x * min.x;
+	}
+	if (n.y > 0.0f) {
+		minD += n.y * min.y; maxD += n.y * max.y;
+
+	}
+	else {
+		minD += n.y * max.y; maxD += n.y * min.y;
+	}
+	if (n.z > 0.0f) {
+		minD += n.z * min.z; maxD += n.z * max.z;
+
+	}
+	else {
+		minD += n.z * max.z; maxD += n.z * min.z;
+	}
+	//在平面背面不考虑
+	if (maxD <= planeD) {
+		return kNoIntersection;
+	}
+	//将最近的点带入标准射线方程(利用射线与平面相交性公式)
+	float t = (planeD - minD) / dot;
+	//检测是否已经穿过
+	if (t < 0.0f) {
+		return 0.0f;
+	}
+	//返回。如果结果大于1，则没有及时到达平面，需要调用者进行检查
+	return t;
+}
+
+```
+
+**AABB与AABB的动态检测
+
+```
+//两个AABB3的动态相交性检测,如果返回值>1则未相交
+float intersectMovingAABB(const AABB3& stationaryBox, const AABB3& movingBox, const Vector3& d) {
+
+	const float kNoIntersection = 1e30f;
+	//初始化时间区间,以包含需要考虑的全部时间段
+	float tEnter = 0.0f;
+	float tLeave = 1.0f;
+	//如果在x轴上的位移为0，则检测x分量是否相交
+	if (d.x == 0.0f) {
+
+		if(
+			(stationaryBox.min.x>=movingBox.max.x)||(stationaryBox.max.x<=movingBox.min.x)
+			)
+		{
+			return kNoIntersection;
+		}
+
+	}
+	else
+	{
+		float oneOverD = 1.0f / d.x;
+
+		float xEnter = (stationaryBox.min.x - movingBox.max.x) * oneOverD;
+		float xLeave = (stationaryBox.max.x - movingBox.min.x) * oneOverD;
+
+		if (xEnter > xLeave) {
+			swap(xEnter, xLeave);
+		}
+
+		if (xEnter > tEnter)tEnter = xEnter;
+		if (xLeave < tLeave)tLeave = xLeave;
+
+		if (tEnter > tLeave) {
+			return kNoIntersection;
+		}
+	}
+
+	if (d.y == 0.0f) {
+
+		if (
+			(stationaryBox.min.y >= movingBox.max.y) || (stationaryBox.max.y <= movingBox.min.y)
+			)
+		{
+			return kNoIntersection;
+		}
+
+	}
+	else
+	{
+		float oneOverD = 1.0f / d.y;
+
+		float yEnter = (stationaryBox.min.y - movingBox.max.y) * oneOverD;
+		float yLeave = (stationaryBox.max.y - movingBox.min.y) * oneOverD;
+
+		if (yEnter > yLeave) {
+			swap(yEnter, yLeave);
+		}
+
+		if (yEnter > tEnter)tEnter = yEnter;
+		if (yLeave < tLeave)tLeave = yLeave;
+
+		if (tEnter > tLeave) {
+			return kNoIntersection;
+		}
+	}
+
+	if (d.z == 0.0f) {
+
+		if (
+			(stationaryBox.min.z >= movingBox.max.z) || (stationaryBox.max.z <= movingBox.min.z)
+			)
+		{
+			return kNoIntersection;
+		}
+
+	}
+	else
+	{
+		float oneOverD = 1.0f / d.z;
+
+		float zEnter = (stationaryBox.min.z - movingBox.max.z) * oneOverD;
+		float zLeave = (stationaryBox.max.z - movingBox.min.z) * oneOverD;
+
+		if (zEnter > zLeave) {
+			swap(zEnter, zLeave);
+		}
+
+		if (zEnter > tEnter)tEnter = zEnter;
+		if (zLeave < tLeave)tLeave = zLeave;
+
+		if (tEnter > tLeave) {
+			return kNoIntersection;
+		}
+	}
+
+	return tEnter;
+}
+```
+***
+## 三角网格类
+
+-[三角网格类头文件](3Dmath/EditTriMesh.h)
+
+***
+
+## 图形管道(流水线)
+- 建立场景
+- 可见性检测
+- 设置物体级的渲染状态
+- 几何体的生成与提交
+- 变换与光照
+- 背面剔除与裁剪
+- 投影到屏幕空间
+- 光栅化
+- 像素着色
+
+***
+
+### 裁剪空间
+
+OpenGL风格的DIP矩阵  p329  公式15.4
+
+DirectX风格的DIP矩阵  p329  公式15.5
+
+***
 
 
